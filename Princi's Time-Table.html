@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Princi's Time-Table</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ranchers&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#efd9e6; --ink:#111; --cell:#fbfcfc; --teal:#83c4b6; --today:#d7d768;
+  --btn:#db5656; --modal:#fff7fb; --muted:#625f5f;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#2a1f27;--ink:#f5e9f0;--cell:#3a2c36;--modal:#34272f;--muted:#c9b7c2}
+}
+:root[data-theme="dark"]{--bg:#2a1f27;--ink:#f5e9f0;--cell:#3a2c36;--modal:#34272f;--muted:#c9b7c2}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Courier New',Courier,monospace}
+
+.realHeader{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.5rem clamp(1rem,4vw,4rem) 0}
+.title h1{margin:0;font-family:"Ranchers",sans-serif;font-weight:400;font-size:clamp(1.5rem,4vw,2.1rem)}
+.divider{border:0;border-top:2px solid var(--ink);margin:1.5rem clamp(1rem,4vw,4rem)}
+
+#month-display{font-size:clamp(1.8rem,5vw,3rem);text-align:center;margin:2rem 0 1.5rem}
+.grid-container{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(2.6rem,auto);gap:clamp(6px,1.5vw,20px);max-width:1100px;margin:0 auto;padding:0 1rem}
+.day-header{justify-self:center;font-weight:600;font-size:clamp(.8rem,2.4vw,2.5rem);color:var(--teal)}
+.grid-item{background:var(--cell);display:flex;justify-content:center;align-items:center;font-family:sans-serif;font-weight:bold;font-size:clamp(.9rem,2.4vw,2rem);border-radius:90px;height:clamp(2.6rem,7vw,5rem);border:2px solid transparent}
+.grid-item.today{border-color:var(--today)}
+
+.btn{font-family:'Courier New',Courier,monospace;font-size:clamp(1.2rem,3vw,2rem);padding:.8rem 2.2rem;background:var(--btn);color:#fff;border:0;border-radius:1rem;cursor:pointer}
+.btn:focus-visible{outline:3px solid var(--today);outline-offset:3px}
+.startWrap{display:flex;justify-content:center;margin:2.5rem 0 3rem}
+
+/* Rules modal */
+.overlay{position:fixed;inset:0;background:rgba(20,10,16,.55);display:none;align-items:center;justify-content:center;padding:calc(1rem + env(safe-area-inset-top,0px)) 1rem calc(1rem + env(safe-area-inset-bottom,0px));z-index:10}
+.overlay.open{display:flex}
+.modal{width:min(100%,860px);height:min(100%,780px);background:var(--modal);border:3px solid var(--ink);border-radius:1.5rem;overflow:hidden;display:flex;flex-direction:column}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:.6rem .9rem;border-bottom:2px solid var(--ink)}
+.arrows{display:flex;gap:.5rem}
+.arrow,.closeBtn{font-family:'Courier New',Courier,monospace;font-size:1.5rem;line-height:1;width:2.6rem;height:2.6rem;border-radius:50%;border:2px solid var(--ink);background:var(--cell);color:var(--ink);cursor:pointer}
+.closeBtn{background:var(--btn);border-color:var(--btn);color:#fff}
+.arrow:disabled{opacity:.3;cursor:default}
+.arrow:focus-visible,.closeBtn:focus-visible{outline:3px solid var(--today);outline-offset:2px}
+.viewport{flex:1;min-height:0;overflow:hidden}
+.track{display:flex;width:200%;height:100%;transition:transform .55s cubic-bezier(.65,0,.35,1)}
+.track.second{transform:translateX(-50%)}
+.panel{width:50%;height:100%;display:flex;flex-direction:column;padding:clamp(1rem,3vw,2rem)}
+.panel h2{margin:0 0 1rem;font-size:clamp(1.3rem,3.5vw,2.1rem)}
+.rules{flex:1;overflow-y:auto;margin:0;padding-left:1.5rem;font-size:clamp(.95rem,2vw,1.15rem);line-height:1.55}
+.rules li{margin-bottom:.7rem;padding-left:.3rem}
+.panelFoot{display:flex;justify-content:space-between;align-items:center;padding-top:1rem}
+.page{color:var(--muted);font-size:1rem}
+
+/* DayPage placeholder */
+#dayPage{display:none;max-width:900px;margin:0 auto;padding:2rem 1rem}
+#dayPage h2{font-family:"Ranchers",sans-serif;font-weight:400;text-align:center;letter-spacing:.12em;font-size:clamp(2.6rem,8vw,5rem);margin:.5rem 0 0}
+#dayPage .divider{margin:1rem 0 1.5rem;border-top-width:3px}
+body.onDay #calendarView{display:none}
+body.onDay #dayPage{display:block}
+
+/* calendar day colors */
+.grid-item.c-red{background:#e0605a;color:#fff}
+.grid-item.c-orange{background:#f0a14e;color:#111}
+.grid-item.c-yellow{background:#efd45a;color:#111}
+.grid-item.c-green{background:#6cbf7a;color:#111}
+/* DayPage */
+#dayPage .dayHead{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:.5rem}
+#dayPage .dayHead h2{font-size:clamp(2rem,6vw,4rem);margin:0}
+#dayPage .dayHead .arrow{justify-self:start}
+.extrasBtn{justify-self:end;font-size:clamp(.85rem,2.2vw,1.2rem);padding:.6rem 1rem;border-radius:.8rem}
+.card{background:var(--modal);border:2px solid var(--ink);border-radius:1.2rem;padding:1rem 1.2rem;margin-bottom:1.2rem}
+.card h3{margin:0 0 .6rem;font-size:1.3rem}
+.row{display:flex;align-items:center;gap:.8rem;padding:.4rem 0;font-size:1.05rem;cursor:pointer}
+.row input{width:1.4rem;height:1.4rem;accent-color:#6cbf7a;flex:none}
+.field{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.4rem 0;font-size:1.05rem}
+.field input[type=text],.field input[type=date],.field input[type=number],textarea{font-family:inherit;font-size:1rem;background:var(--cell);color:var(--ink);border:2px solid var(--ink);border-radius:.6rem;padding:.4rem .6rem}
+.field input[type=number]{width:5rem}
+textarea{width:100%;min-height:9rem;resize:vertical}
+.count{text-align:right;color:var(--muted)}
+.count.over{color:var(--btn);font-weight:bold}
+.meter{height:14px;border-radius:9px;background:rgba(127,127,127,.28);overflow:hidden;margin:.6rem 0 1rem}
+.meter i,.meter .fill{display:block;height:100%;width:0;background:var(--teal);transition:width .3s}
+.fill.red{background:#e0605a}.fill.orange{background:#f0a14e}.fill.yellow{background:#efd45a}.fill.green{background:#6cbf7a}
+.note{padding:.8rem 1rem;border:2px dashed var(--ink);border-radius:.8rem;margin-bottom:1.2rem}
+.dayFoot{text-align:center;margin:2rem 0 3rem}
+.hint{color:var(--muted);min-height:1.4em}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.secondary{background:var(--cell);color:var(--ink);border:2px solid var(--ink)}
+.modal.small{height:auto;max-width:520px}
+.btn.small{font-size:1rem;padding:.5rem 1.4rem}
+.syncWrap{display:flex;justify-content:center;gap:1rem;margin:0 0 .5rem}
+.syncHint{text-align:center}
+.stepper{display:flex;align-items:center;gap:.6rem}
+.stepper b{min-width:2ch;text-align:center;font-size:1.3rem}
+</style>
+</head>
+<body>
+
+<div id="calendarView">
+  <div class="realHeader">
+    <div class="title"><h1>Princi's Time-Table</h1></div>
+  </div>
+  <hr class="divider">
+  <h2 id="month-display"></h2>
+  <div id="grid-container" class="grid-container">
+    <div class="day-header">Mon</div><div class="day-header">Tue</div><div class="day-header">Wed</div>
+    <div class="day-header">Thu</div><div class="day-header">Fri</div><div class="day-header">Sat</div><div class="day-header">Sun</div>
+  </div>
+  <div class="startWrap"><button type="button" class="btn" id="startButton">START</button></div>
+  <div class="syncWrap"><button type="button" class="btn secondary small" id="exportBtn">EXPORT</button><button type="button" class="btn secondary small" id="importBtn">IMPORT</button><input type="file" id="importFile" accept=".json,application/json" hidden></div>
+  <p class="hint syncHint" id="syncHint"></p>
+  <hr class="divider">
+</div>
+
+<div id="dayPage">
+  <div class="dayHead">
+    <button type="button" class="arrow" id="backButton" aria-label="Back to calendar">&larr;</button>
+    <h2>DayPage</h2>
+    <button type="button" class="btn extrasBtn" id="extrasOpen">10 Extras <span id="extrasCount">0/3</span></button>
+  </div>
+  <hr class="divider">
+  <p id="dayDate"></p>
+  <div class="note" id="lockNote" hidden>This day is finished and locked.</div>
+  <div class="meter"><div class="fill" id="dayMeter"></div></div>
+  <p class="hint" id="dayScore"></p>
+
+  <section class="card"><h3>Academics</h3><div id="acadList"></div></section>
+
+  <section class="card"><h3>Holistic</h3>
+    <div class="field"><label for="topicName">This week's topic</label><input type="text" id="topicName" maxlength="60"></div>
+    <div class="field"><label for="topicStart">Topic started on</label><input type="date" id="topicStart"></div>
+    <div id="holList"></div>
+    <div class="field"><span>Water (glasses)</span>
+      <div class="stepper"><button type="button" class="arrow act" id="waterMinus" aria-label="One less glass">&minus;</button><b id="water">0</b><button type="button" class="arrow act" id="waterPlus" aria-label="One more glass">+</button></div>
+      <span class="hint">goal: 8</span></div>
+    <div class="field"><label for="sleep">Hours slept</label><input type="number" id="sleep" min="0" max="14" step="0.5"><span class="hint">goal: 7+</span></div>
+  </section>
+
+  <section class="card"><h3>How was your day (100 words limit)</h3>
+    <textarea id="recap" placeholder="What did you do today?"></textarea>
+    <div class="count" id="wc">0 / 100</div>
+    <div class="dayFoot" style="margin:1rem 0 0"><button type="button" class="btn act" id="printBtn">PRINT RECEIPT</button></div>
+  </section>
+
+  <div class="dayFoot">
+    <p class="hint" id="finishHint"></p>
+    <button type="button" class="btn act" id="finishBtn" disabled>FINISH DAY</button>
+  </div>
+</div>
+
+<div class="overlay" id="extrasOverlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="xt">
+    <div class="bar"><span></span><button type="button" class="closeBtn" id="extrasClose" aria-label="Close extras">&times;</button></div>
+    <div class="panel" style="width:100%;flex:1;min-height:0">
+      <h2 id="xt">10 Extras!</h2>
+      <p id="xNote"></p>
+      <div class="meter"><i id="xMeter"></i></div>
+      <div class="rules" id="xList" style="padding-left:0"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="confirmOverlay">
+  <div class="modal small" role="alertdialog" aria-modal="true" aria-labelledby="ct">
+    <div class="panel" style="width:100%;height:auto">
+      <h2 id="ct">Print receipt?</h2>
+      <p id="confirmMsg"></p>
+      <div class="panelFoot"><button type="button" class="btn secondary" id="confirmNo">NOT YET</button><button type="button" class="btn" id="confirmYes">PRINT IT</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="t1">
+    <div class="bar">
+      <div class="arrows">
+        <button type="button" class="arrow" id="prevArrow" aria-label="Previous rules" disabled>&larr;</button>
+        <button type="button" class="arrow" id="nextArrow" aria-label="Next rules">&rarr;</button>
+      </div>
+      <button type="button" class="closeBtn" id="closeButton" aria-label="Close rules">&times;</button>
+    </div>
+    <div class="viewport" id="viewport">
+    <div class="track" id="track">
+      <section class="panel" id="p1">
+        <h2 id="t1">RULES - Academia</h2>
+        <ol class="rules">
+          <li>If coming home from school, get refreshed and use phone for 10-20 minutes maximum to get caught up. Have lunch at the same time.</li>
+          <li>Do not eat lunch and watch phone separately. If you have to pick one, pick lunch and finish it.</li>
+          <li>Immediately finish all homework for the day.</li>
+          <li>If going for a nap, set an alarm for 1 hour, or 1.5 hours maximum.</li>
+          <li>Wake up, get refreshed. Regardless of what time it is, begin your first 2 hour long study session.</li>
+          <li>Take a break of maximum 10-15 minutes.</li>
+          <li>Start next study session of 2 hours.</li>
+          <li>Have a break after this infinitely until dinner time, or revise what you did in the meantime until the same.</li>
+          <li>After dinner, begin a 1 hour study session, followed by a 1 hour revision time of everything studied in the day.</li>
+          <li>The last 1 hour revision can be done while walking, listening to music etc, as a lighthearted activity so long as you are able to ensure that the revision is actually happening since it is crucial.</li>
+        </ol>
+        <div class="panelFoot"><span class="page">1 / 2</span><button type="button" class="btn" id="nextButton">NEXT</button></div>
+      </section>
+      <section class="panel" id="p2" inert>
+        <h2>RULES - Holistic</h2>
+        <ol class="rules">
+          <li>In the free hours left, use the internet to find 1 random topic of your own interest. Once a topic is found, that topic's week has begun.</li>
+          <li>Open a notes app on your phone, iPad, or even pen and paper, and write down all cool facts and information about that topic.</li>
+          <li>Do not rush, this is your topic for a whole week, so there is plenty of research time.</li>
+          <li>At the end of the week you have to submit as a PDF your 700-1000 word essay, written in your own language.</li>
+          <li>Usage of AI is strictly forbidden because it is a matter of interest and personal growth. Since you have 1 week to write a maximum of 1000 words, you only have to write 140-ish words of your own every day, which is a very small amount.</li>
+          <li>I can tell if it is AI and you will be hit with an APFSDS sabot if found using AI.</li>
+          <li>Your CSV must mention the starting date of your topic's writing commencement.</li>
+          <li>Keep the topics interesting, they could be anything: space, games, music interest, etc. (rules are rules ;) ).</li>
+          <li>By the end of 1 month you will have 4 essays entirely of your own, which will teach you a lot more than just the topics themselves!</li>
+        </ol>
+        <div class="panelFoot"><span class="page">2 / 2</span><button type="button" class="btn" id="goButton">START</button></div>
+      </section>
+    </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY = 'princi.v2';
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+function loadStore() {
+  try { const o = JSON.parse(localStorage.getItem(KEY)); if (o && o.days) { o.topic = o.topic || { name: '', start: '' }; return o; } } catch (e) {}
+  return { days: {}, draft: null, topic: { name: '', start: '' } };
+}
+const store = loadStore();
+function persist() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+function generateCalendar(year, month) {
+  const container = document.getElementById('grid-container');
+  const monthDisplay = document.getElementById('month-display');
+  container.querySelectorAll('.grid-item, .empty-cell').forEach(el => el.remove());
+  monthDisplay.textContent = new Date(year, month, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+  const today = new Date();
+  const isThisMonth = today.getFullYear() === year && today.getMonth() === month;
+
+  for (let i = 1 - offset; i <= totalDays; i++) {
+    const cell = document.createElement('div');
+    cell.className = i > 0 ? 'grid-item' : 'empty-cell';
+    if (i > 0) cell.textContent = i;
+    if (isThisMonth && i === today.getDate()) cell.classList.add('today');
+    if (i > 0) { const d = store.days[ymd(new Date(year, month, i))]; if (d) cell.classList.add('c-' + d); }
+    container.appendChild(cell);
+  }
+}
+const now = new Date();
+generateCalendar(now.getFullYear(), now.getMonth());
+
+const overlay = document.getElementById('overlay');
+const track = document.getElementById('track');
+const p1 = document.getElementById('p1');
+const p2 = document.getElementById('p2');
+
+function openRules() {
+  track.style.transition = 'none';
+  track.classList.remove('second');
+  showPanel(false, false);
+  void track.offsetWidth;
+  track.style.transition = '';
+  overlay.classList.add('open');
+  document.querySelector('.modal').scrollLeft = 0;
+  document.getElementById('nextButton').focus({ preventScroll: true });
+}
+document.getElementById('startButton').addEventListener('click', openRules);
+const prevArrow = document.getElementById('prevArrow');
+const nextArrow = document.getElementById('nextArrow');
+const viewport = document.getElementById('viewport');
+function showPanel(second, focusIt = true) {
+  track.classList.toggle('second', second);
+  p1.inert = second; p2.inert = !second;
+  prevArrow.disabled = !second; nextArrow.disabled = second;
+  viewport.scrollLeft = 0;
+  if (focusIt) document.getElementById(second ? 'goButton' : 'nextButton').focus({ preventScroll: true });
+}
+function closeRules() { overlay.classList.remove('open'); }
+document.getElementById('nextButton').addEventListener('click', () => showPanel(true));
+nextArrow.addEventListener('click', () => showPanel(true));
+prevArrow.addEventListener('click', () => showPanel(false));
+document.getElementById('closeButton').addEventListener('click', closeRules);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open')); });
+const $ = id => document.getElementById(id);
+const ACAD = [['hw', 'Homework finished', 10], ['s1', 'Study session 1 (2h)', 15], ['s2', 'Study session 2 (2h)', 15], ['s3', 'Evening session (1h)', 10], ['rev', 'Revision hour', 25]];
+const HOL = [['topic', 'Researched my topic today', 10], ['phone', 'Phone time within my limit', 5], ['school', 'Took part in something at school', 1]];
+const COLORS = ['red', 'orange', 'yellow', 'green'];
+const EXTRAS = [
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit.', 'Sed do eiusmod tempor incididunt ut labore et dolore.',
+  'Ut enim ad minim veniam, quis nostrud exercitation.', 'Duis aute irure dolor in reprehenderit in voluptate.',
+  'Excepteur sint occaecat cupidatat non proident.', 'Sunt in culpa qui officia deserunt mollit anim.',
+  'Curabitur pretium tincidunt lacus, nulla gravida orci.', 'Vestibulum ante ipsum primis in faucibus orci.',
+  'Praesent commodo cursus magna, vel scelerisque nisl.', 'Maecenas faucibus mollis interdum, integer posuere erat.'
+];
+let S;
+function initState() {
+  const k = ymd(new Date());
+  if (store.draft && store.draft.date === k) S = store.draft;
+  else { S = { date: k, ac: {}, hol: {}, water: 0, sleep: '', extras: {}, receipt: false }; store.draft = S; }
+}
+const words = t => { const m = t.trim().match(/\S+/g); return m ? m.length : 0; };
+const extrasDone = () => EXTRAS.filter((_, i) => S.extras[i]).length;
+function score() {
+  const pts = (list, g) => list.reduce((t, [k, , p]) => t + (S[g][k] ? p : 0), 0);
+  const sl = parseFloat(S.sleep) || 0;
+  return pts(ACAD, 'ac') + pts(HOL, 'hol') + (S.water >= 8 ? 1 : 0) + (sl >= 7 ? 5 : sl >= 6 ? 3 : 0) + (S.receipt ? 3 : 0);
+}
+const colorOf = n => n >= 85 ? 'green' : n >= 65 ? 'yellow' : n >= 40 ? 'orange' : 'red';
+const rowHTML = (g, k, label, on) => `<label class="row"><input type="checkbox" data-g="${g}" data-k="${k}"${on ? ' checked' : ''}> ${label}</label>`;
+
+function renderDay() {
+  $('dayDate').textContent = new Date().toLocaleDateString('default', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  $('acadList').innerHTML = ACAD.map(([k, l]) => rowHTML('ac', k, l, S.ac[k])).join('');
+  $('holList').innerHTML = HOL.map(([k, l]) => rowHTML('hol', k, l, S.hol[k])).join('');
+  $('xList').innerHTML = EXTRAS.map((t, i) => rowHTML('extras', i, t, S.extras[i])).join('');
+  $('sleep').value = S.sleep;
+  $('topicName').value = store.topic.name;
+  $('topicStart').value = store.topic.start;
+  $('recap').value = '';
+  const locked = !!store.days[S.date];
+  $('lockNote').hidden = !locked;
+  document.querySelectorAll('#dayPage input, #dayPage textarea, #xList input, .act').forEach(el => { el.disabled = locked; });
+  update();
+}
+function update() {
+  const locked = !!store.days[S.date], ex = extrasDone(), sc = score(), w = words($('recap').value);
+  $('water').textContent = S.water;
+  $('extrasCount').textContent = ex + '/3';
+  $('xNote').textContent = ex >= 3 ? ex + ' done. Today\'s minimum is met.' : ex + ' of 3 done. Do at least 3 every day.';
+  $('xMeter').style.width = Math.min(ex / 3, 1) * 100 + '%';
+  $('dayMeter').style.width = sc + '%';
+  $('dayMeter').className = 'fill ' + colorOf(sc);
+  $('dayScore').textContent = 'Today so far: ' + sc + ' / 100';
+  $('wc').textContent = w + ' / 100';
+  $('wc').classList.toggle('over', w > 100);
+  $('recap').readOnly = S.receipt;
+  $('printBtn').textContent = S.receipt ? 'RECEIPT PRINTED' : 'PRINT RECEIPT';
+  $('printBtn').disabled = locked || S.receipt || w < 1 || w > 100;
+  $('finishBtn').disabled = locked || !S.receipt;
+  $('finishHint').textContent = locked ? '' : (S.receipt ? '' : 'Print your receipt to unlock Finish Day.');
+}
+function openDay() { initState(); renderDay(); document.body.classList.add('onDay'); window.scrollTo(0, 0); }
+const openOv = id => $(id).classList.add('open');
+const closeOv = id => $(id).classList.remove('open');
+
+document.getElementById('goButton').addEventListener('click', () => { closeRules(); openDay(); });
+$('backButton').addEventListener('click', () => document.body.classList.remove('onDay'));
+$('extrasOpen').addEventListener('click', () => openOv('extrasOverlay'));
+$('extrasClose').addEventListener('click', () => closeOv('extrasOverlay'));
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.g) { S[t.dataset.g][t.dataset.k] = t.checked; persist(); update(); }
+});
+$('waterMinus').addEventListener('click', () => { S.water = Math.max(0, S.water - 1); persist(); update(); });
+$('waterPlus').addEventListener('click', () => { S.water = Math.min(16, S.water + 1); persist(); update(); });
+$('sleep').addEventListener('input', e => { S.sleep = e.target.value; persist(); update(); });
+$('topicName').addEventListener('input', e => { store.topic.name = e.target.value; persist(); });
+$('topicStart').addEventListener('input', e => { store.topic.start = e.target.value; persist(); });
+$('recap').addEventListener('input', update);
+
+const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+function buildCsv() {
+  const text = $('recap').value.replace(/\s+/g, ' ').trim();
+  const head = ['date', 'topic', 'topic_start', 'academic_done', 'extras_done', 'water_glasses', 'sleep_hours', 'words', 'summary'];
+  const row = [S.date, store.topic.name, store.topic.start, ACAD.filter(([k]) => S.ac[k]).length + '/' + ACAD.length, extrasDone(), S.water, S.sleep, words(text), text];
+  return head.join(',') + '\n' + row.map(q).join(',') + '\n';
+}
+async function saveFile(filename, data, mime) {
+  try {
+    const dl = window.claude ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename, data }); return true; }
+  } catch (e) { return false; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([data], { type: mime }));
+  a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  return true;
+}
+$('printBtn').addEventListener('click', () => {
+  const w = words($('recap').value);
+  $('confirmMsg').textContent = 'Your note is ' + w + ' words. Print the receipt now? You can\'t edit the note after printing.' +
+    (store.topic.start ? '' : ' Heads up: your topic start date is empty.');
+  openOv('confirmOverlay');
+});
+$('confirmNo').addEventListener('click', () => closeOv('confirmOverlay'));
+$('confirmYes').addEventListener('click', async () => {
+  closeOv('confirmOverlay');
+  if (await saveFile('receipt-' + S.date + '.csv', buildCsv(), 'text/csv')) { S.receipt = true; persist(); update(); }
+});
+$('finishBtn').addEventListener('click', () => {
+  const sc = score();
+  store.days[S.date] = colorOf(sc);
+  persist(); syncHint();
+  document.body.classList.remove('onDay');
+  generateCalendar(now.getFullYear(), now.getMonth());
+  window.scrollTo(0, 0);
+});
+
+function syncHint() {
+  const el = $('syncHint');
+  if (!Object.keys(store.days).length) { el.textContent = ''; return; }
+  const last = store.lastExport;
+  const d = last == null ? null : Math.round((new Date(ymd(new Date())) - new Date(last)) / 86400000);
+  el.textContent = d == null ? 'No export yet. Export your forest every 3 days.'
+    : d >= 3 ? 'Last export was ' + d + ' days ago. Time to export again.'
+    : 'Last export: ' + (d === 0 ? 'today' : d + ' day' + (d > 1 ? 's' : '') + ' ago') + '.';
+}
+$('exportBtn').addEventListener('click', async () => {
+  const data = JSON.stringify({ app: 'princi-timetable', v: 1, days: store.days, topic: store.topic }, null, 1);
+  if (await saveFile('princi-forest-' + ymd(new Date()) + '.json', data, 'application/json')) {
+    store.lastExport = ymd(new Date()); persist(); syncHint();
+  }
+});
+$('importBtn').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const o = JSON.parse(await f.text());
+    if (!o || o.app !== 'princi-timetable' || typeof o.days !== 'object') throw new Error('bad file');
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    let n = 0;
+    for (const [k, v] of Object.entries(o.days)) {
+      if (dateRe.test(k) && COLORS.includes(v) && !store.days[k]) { store.days[k] = v; n++; }
+    }
+    if (o.topic && typeof o.topic === 'object' && !store.topic.name && !store.topic.start) {
+      store.topic.name = String(o.topic.name || '').slice(0, 60);
+      store.topic.start = dateRe.test(o.topic.start) ? o.topic.start : '';
+    }
+    persist();
+    generateCalendar(now.getFullYear(), now.getMonth());
+    $('syncHint').textContent = 'Imported ' + n + ' day' + (n === 1 ? '' : 's') + '.';
+  } catch (err) {
+    $('syncHint').textContent = 'That file could not be read. Pick a file exported from this app.';
+  }
+});
+syncHint();
+</script>
+</body>
+</html>
